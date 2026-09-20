@@ -28,13 +28,25 @@ export default function Home() {
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayDate = new Date();
   
-  // 当日目标统计 - 改进过滤逻辑
+  // 当日目标统计 - 显示所有今天相关的目标（任何层级）
   const dailyGoals = goals.filter(g => {
-    if (g.level !== 'daily') return false;
-    // 优先匹配 endDate 为今天的
+    // 排除已归档的目标
+    if (g.status === 'archived') return false;
+    
+    // 今天结束的目标
     if (g.endDate === today) return true;
-    // 如果没有 endDate，但 startDate 为今天，也显示
-    if (!g.endDate && g.startDate === today) return true;
+    
+    // 今天开始的目标
+    if (g.startDate === today) return true;
+    
+    // 今天正在进行中的目标（开始日期在今天之前，结束日期在今天之后）
+    if (g.startDate && g.endDate) {
+      const startDate = new Date(g.startDate);
+      const endDate = new Date(g.endDate);
+      const today = new Date();
+      if (startDate <= today && endDate >= today) return true;
+    }
+    
     return false;
   });
   const dailyCompleted = dailyGoals.filter(g => g.completed).length;
@@ -95,10 +107,10 @@ export default function Home() {
     return g.startDate === today;
   });
 
-  // 昨日未完成 - 改进过滤逻辑
+  // 昨日未完成 - 显示所有层级昨天未完成的目标
   const yesterday = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
   const yesterdayIncomplete = goals.filter(g => {
-    if (g.level !== 'daily' || g.completed) return false;
+    if (g.completed || g.status === 'archived') return false;
     // 匹配 endDate 为昨天的
     if (g.endDate === yesterday) return true;
     // 如果没有 endDate，但 startDate 为昨天，也显示
@@ -215,7 +227,7 @@ export default function Home() {
                 <div className="text-center py-8 text-gray-400">
                   <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>今日暂无任务</p>
-                  <p className="text-sm mt-1">前往目标管理创建日目标</p>
+                  <p className="text-sm mt-1">前往目标管理创建目标，设置今天为开始或结束日期</p>
                 </div>
               ) : (
                 dailyGoals.map(goal => (
@@ -229,11 +241,21 @@ export default function Home() {
                         )}
                       </button>
                       <div className="flex-1">
-                        <p className={`text-sm font-medium ${goal.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                          {goal.name}
-                        </p>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-xs px-2 py-0.5 rounded ${getLevelColor(goal.level)}`}>
+                            {getLevelLabel(goal.level)}
+                          </span>
+                          <p className={`text-sm font-medium ${goal.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                            {goal.name}
+                          </p>
+                        </div>
                         {goal.description && (
                           <p className="text-xs text-gray-500 mt-1">{goal.description}</p>
+                        )}
+                        {(goal.startDate || goal.endDate) && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            {goal.startDate && goal.startDate.slice(0, 10)} ~ {goal.endDate && goal.endDate.slice(0, 10)}
+                          </p>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
