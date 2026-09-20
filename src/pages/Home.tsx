@@ -1,12 +1,11 @@
-import { useState } from 'react';
-import { useGoalStore, useAuthStore } from '../store';
-import { format, differenceInDays, parseISO } from 'date-fns';
+import { useState, useEffect } from 'react';
+import { useGoalStore } from '../store';
+import { format, differenceInDays, parseISO, isBefore, isAfter, addDays } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { CheckCircle2, Circle, Clock, AlertTriangle, TrendingUp, Calendar, Flame, Target, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, AlertTriangle, TrendingUp, Calendar, Flame, Target, AlertCircle, Play, Bell } from 'lucide-react';
 
 export default function Home() {
   const { goals, toggleGoalComplete, getGoalProgress, reviews, createReview } = useGoalStore();
-  const { currentUser } = useAuthStore();
   const [showReview, setShowReview] = useState(false);
   const [review, setReview] = useState({
     completionSummary: '',
@@ -14,6 +13,17 @@ export default function Home() {
     optimization: '',
     tomorrowPlan: ''
   });
+  
+  // 提醒设置
+  const [startReminderDays, setStartReminderDays] = useState(3);
+  const [endReminderDays, setEndReminderDays] = useState(3);
+
+  useEffect(() => {
+    // 从 localStorage 加载提醒设置
+    const settings = JSON.parse(localStorage.getItem('np_reminder_settings') || '{}');
+    if (settings.startReminderDays !== undefined) setStartReminderDays(settings.startReminderDays);
+    if (settings.endReminderDays !== undefined) setEndReminderDays(settings.endReminderDays);
+  }, []);
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayDate = new Date();
@@ -45,6 +55,12 @@ export default function Home() {
     return differenceInDays(end, todayDate);
   };
 
+  const getDaysUntilStart = (startDate: string) => {
+    if (!startDate) return null;
+    const start = parseISO(startDate);
+    return differenceInDays(start, todayDate);
+  };
+
   // 延期目标（已过期但未完成）
   const delayedGoals = goals.filter(g => {
     if (g.completed || g.status === 'archived') return false;
@@ -52,11 +68,24 @@ export default function Home() {
     return daysRemaining !== null && daysRemaining < 0;
   });
 
-  // 即将到期（3天内）
+  // 即将到期（使用设置的提醒天数）
   const urgentGoals = goals.filter(g => {
     if (g.completed || g.status === 'archived') return false;
     const daysRemaining = getDaysRemaining(g.endDate);
-    return daysRemaining !== null && daysRemaining >= 0 && daysRemaining <= 3;
+    return daysRemaining !== null && daysRemaining >= 0 && daysRemaining <= endReminderDays;
+  });
+
+  // 即将开始（使用设置的提醒天数）
+  const upcomingGoals = goals.filter(g => {
+    if (g.completed || g.status === 'archived') return false;
+    const daysUntilStart = getDaysUntilStart(g.startDate);
+    return daysUntilStart !== null && daysUntilStart > 0 && daysUntilStart <= startReminderDays;
+  });
+
+  // 今日开始的目标
+  const todayStartGoals = goals.filter(g => {
+    if (g.completed || g.status === 'archived') return false;
+    return g.startDate === today;
   });
 
   // 昨日未完成
@@ -65,7 +94,7 @@ export default function Home() {
 
   const handleSubmitReview = () => {
     createReview({
-      userId: currentUser?.id || '',
+      userId: '',
       date: today,
       ...review
     });
@@ -248,10 +277,63 @@ export default function Home() {
           {/* 预警提醒 */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              <Bell className="w-5 h-5 text-amber-500" />
               预警提醒
             </h2>
             <div className="space-y-3">
+              {/* 今日开始 */}
+              {todayStartGoals.length > 0 && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Play className="w-4 h-4 text-blue-600" />
+                    <p className="text-sm font-medium text-blue-700">今日开始 ({todayStartGoals.length})</p>
+                  </div>
+                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                    {todayStartGoals.slice(0, 5).map(goal => (
+                      <div key={goal.id} className="flex items-start gap-2 text-xs">
+                        <span className={`px-1.5 py-0.5 rounded ${getLevelColor(goal.level)} font-medium`}>
+                          {getLevelLabel(goal.level)}
+                        </span>
+                        <span className="text-blue-700 flex-1 truncate">{goal.name}</span>
+                        <span className="text-blue-600 font-medium whitespace-nowrap">今天开始</span>
+                      </div>
+                    ))}
+                    {todayStartGoals.length > 5 && (
+                      <p className="text-xs text-blue-600 text-center">还有 {todayStartGoals.length - 5} 项...</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 即将开始 */}
+              {upcomingGoals.length > 0 && (
+                <div className="p-3 bg-cyan-50 border border-cyan-200 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="w-4 h-4 text-cyan-600" />
+                    <p className="text-sm font-medium text-cyan-700">即将开始 ({upcomingGoals.length})</p>
+                  </div>
+                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                    {upcomingGoals.slice(0, 5).map(goal => {
+                      const daysUntilStart = getDaysUntilStart(goal.startDate);
+                      return (
+                        <div key={goal.id} className="flex items-start gap-2 text-xs">
+                          <span className={`px-1.5 py-0.5 rounded ${getLevelColor(goal.level)} font-medium`}>
+                            {getLevelLabel(goal.level)}
+                          </span>
+                          <span className="text-cyan-700 flex-1 truncate">{goal.name}</span>
+                          <span className="text-cyan-600 font-medium whitespace-nowrap">
+                            {daysUntilStart}天后开始
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {upcomingGoals.length > 5 && (
+                      <p className="text-xs text-cyan-600 text-center">还有 {upcomingGoals.length - 5} 项...</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* 延期目标 */}
               {delayedGoals.length > 0 && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -283,7 +365,7 @@ export default function Home() {
               {urgentGoals.length > 0 && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
-                    <Clock className="w-4 h-4 text-amber-600" />
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
                     <p className="text-sm font-medium text-amber-700">即将到期 ({urgentGoals.length})</p>
                   </div>
                   <div className="space-y-1.5 max-h-32 overflow-y-auto">
@@ -332,7 +414,7 @@ export default function Home() {
               )}
 
               {/* 无预警 */}
-              {delayedGoals.length === 0 && urgentGoals.length === 0 && yesterdayIncomplete.length === 0 && (
+              {delayedGoals.length === 0 && urgentGoals.length === 0 && yesterdayIncomplete.length === 0 && todayStartGoals.length === 0 && upcomingGoals.length === 0 && (
                 <div className="text-center py-4">
                   <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
                   <p className="text-sm text-gray-500">暂无预警，继续保持！</p>
