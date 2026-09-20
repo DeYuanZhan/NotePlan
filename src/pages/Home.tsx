@@ -28,8 +28,15 @@ export default function Home() {
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayDate = new Date();
   
-  // 当日目标统计
-  const dailyGoals = goals.filter(g => g.level === 'daily' && g.endDate === today);
+  // 当日目标统计 - 改进过滤逻辑
+  const dailyGoals = goals.filter(g => {
+    if (g.level !== 'daily') return false;
+    // 优先匹配 endDate 为今天的
+    if (g.endDate === today) return true;
+    // 如果没有 endDate，但 startDate 为今天，也显示
+    if (!g.endDate && g.startDate === today) return true;
+    return false;
+  });
   const dailyCompleted = dailyGoals.filter(g => g.completed).length;
   const dailyInProgress = dailyGoals.filter(g => !g.completed && g.status === 'in_progress').length;
   const dailyNotStarted = dailyGoals.filter(g => !g.completed && g.status === 'not_started').length;
@@ -88,9 +95,16 @@ export default function Home() {
     return g.startDate === today;
   });
 
-  // 昨日未完成
+  // 昨日未完成 - 改进过滤逻辑
   const yesterday = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
-  const yesterdayIncomplete = goals.filter(g => g.level === 'daily' && g.endDate === yesterday && !g.completed);
+  const yesterdayIncomplete = goals.filter(g => {
+    if (g.level !== 'daily' || g.completed) return false;
+    // 匹配 endDate 为昨天的
+    if (g.endDate === yesterday) return true;
+    // 如果没有 endDate，但 startDate 为昨天，也显示
+    if (!g.endDate && g.startDate === yesterday) return true;
+    return false;
+  });
 
   const handleSubmitReview = () => {
     createReview({
