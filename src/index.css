@@ -175,10 +175,20 @@ html, body, #root {
 .attachment-block:hover {
   background-color: #f3f4f6 !important;
   border-color: #4f46e5 !important;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.1);
+}
+
+.attachment-block a {
+  transition: all 0.2s ease;
 }
 
 .attachment-block a:hover {
-  color: #4338ca !important;
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.attachment-block a:active {
+  transform: translateY(0);
 }
 
 /* Drag and drop styles */

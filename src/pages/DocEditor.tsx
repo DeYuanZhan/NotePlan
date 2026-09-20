@@ -162,21 +162,30 @@ export default function DocEditor() {
         };
         reader.readAsDataURL(file);
       } else if (isPdf || isDocument) {
-        // PDF 或文档文件：插入为附件链接
+        // PDF 或文档文件：插入为可打开的附件
         const reader = new FileReader();
         reader.onload = (e) => {
           const base64 = e.target?.result as string;
           const fileSize = (file.size / 1024).toFixed(2);
+          const fileType = isPdf ? 'PDF' : '文档';
+          const fileIcon = isPdf ? '📄' : '📝';
+          
+          // 创建可打开的附件（移除 download 属性，允许浏览器预览）
           const attachmentHtml = `
-            <div class="attachment-block" style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin: 8px 0; background: #f9fafb;">
-              <a href="${base64}" download="${file.name}" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: #4f46e5;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                </svg>
-                <span style="flex: 1;">${file.name}</span>
-                <span style="font-size: 12px; color: #6b7280;">${fileSize} KB</span>
-              </a>
+            <div class="attachment-block" data-file-type="${fileType}" style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin: 8px 0; background: #f9fafb; cursor: pointer; transition: all 0.2s;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 20px;">${fileIcon}</span>
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-weight: 500; color: #1f2937; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</div>
+                  <div style="font-size: 12px; color: #6b7280;">${fileType} · ${fileSize} KB</div>
+                </div>
+                <a href="${base64}" target="_blank" rel="noopener noreferrer" style="padding: 6px 12px; background: #4f46e5; color: white; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 500; white-space: nowrap;" onclick="event.stopPropagation();">
+                  打开
+                </a>
+                <a href="${base64}" download="${file.name}" style="padding: 6px 12px; background: #e5e7eb; color: #374151; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 500; white-space: nowrap;" onclick="event.stopPropagation();">
+                  下载
+                </a>
+              </div>
             </div>
           `;
           editor.chain().focus().insertContent(attachmentHtml).run();
