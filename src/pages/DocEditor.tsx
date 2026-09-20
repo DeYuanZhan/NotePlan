@@ -112,6 +112,15 @@ export default function DocEditor() {
     return () => window.removeEventListener('keydown', handler);
   }, [handleSave]);
 
+  // Cleanup save timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+      }
+    };
+  }, []);
+
   const addImage = () => {
     const url = window.prompt('输入图片URL:');
     if (url && editor) {

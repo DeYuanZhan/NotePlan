@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useGoalStore } from '../store';
+import { useGoalStore, useAuthStore } from '../store';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { CheckCircle2, Circle, Clock, AlertTriangle, TrendingUp, Calendar, ChevronDown, ChevronRight, Flame, Target } from 'lucide-react';
 
 export default function Home() {
   const { goals, toggleGoalComplete, getGoalProgress, reviews, createReview } = useGoalStore();
+  const { currentUser } = useAuthStore();
   const [showReview, setShowReview] = useState(false);
   const [expandedDaily, setExpandedDaily] = useState<string[]>([]);
   const [review, setReview] = useState({
@@ -41,7 +42,7 @@ export default function Home() {
 
   const handleSubmitReview = () => {
     createReview({
-      userId: '',
+      userId: currentUser?.id || '',
       date: today,
       ...review
     });

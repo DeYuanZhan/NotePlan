@@ -16,6 +16,7 @@ interface Props {
 export default function MindMapPanel({ data, onChange, onSave }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const mmRef = useRef<Markmap | null>(null);
+  const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [textData, setTextData] = useState('');
   const [editingPath, setEditingPath] = useState<string | null>(null);
@@ -36,27 +37,74 @@ export default function MindMapPanel({ data, onChange, onSave }: Props) {
     }
   }, []);
 
-  // Render markmap
-  useEffect(() => {
-    if (!svgRef.current || editMode) return;
-    
-    try {
-      if (mmRef.current) {
-        mmRef.current.setData(tree as any);
-        setTimeout(() => mmRef.current?.fit(), 100);
-      } else {
-        mmRef.current = Markmap.create(svgRef.current, {
-          autoFit: true,
-          duration: 300,
-          maxWidth: 200,
-          spacingHorizontal: 80,
-          spacingVertical: 16,
-        }, tree as any);
-      }
-    } catch (e) {
-      console.error('Markmap render error:', e);
+  // Safe destroy helper
+  const destroyMarkmap = useCallback(() => {
+    // Clear any pending timers
+    if (fitTimerRef.current) {
+      clearTimeout(fitTimerRef.current);
+      fitTimerRef.current = null;
     }
-  }, [tree, editMode]);
+    
+    // Safely destroy markmap instance
+    if (mmRef.current) {
+      try {
+        mmRef.current.destroy();
+      } catch (e) {
+        // Ignore destroy errors - SVG might already be removed
+        console.debug('Markmap destroy error (expected):', e);
+      }
+      mmRef.current = null;
+    }
+  }, []);
+
+  // Create/update markmap when tree changes (only when not in edit mode)
+  useEffect(() => {
+    if (editMode) return;
+    
+    const svgEl = svgRef.current;
+    if (!svgEl) return;
+
+    // Destroy existing instance before creating new one
+    destroyMarkmap();
+
+    try {
+      const mm = Markmap.create(svgEl, {
+        autoFit: true,
+        duration: 300,
+        maxWidth: 200,
+        spacingHorizontal: 80,
+        spacingVertical: 16,
+      }, tree as any);
+      
+      mmRef.current = mm;
+
+      // Schedule fit after render
+      fitTimerRef.current = setTimeout(() => {
+        if (mmRef.current) {
+          try {
+            mmRef.current.fit();
+          } catch (e) {
+            console.debug('Markmap fit error:', e);
+          }
+        }
+      }, 150);
+    } catch (e) {
+      console.error('Markmap create error:', e);
+      mmRef.current = null;
+    }
+
+    // Cleanup on unmount or dependency change
+    return () => {
+      destroyMarkmap();
+    };
+  }, [tree, editMode, destroyMarkmap]);
+
+  // Final cleanup on unmount
+  useEffect(() => {
+    return () => {
+      destroyMarkmap();
+    };
+  }, [destroyMarkmap]);
 
   const saveTree = useCallback((newTree: MindMapNode) => {
     setTree(newTree);
@@ -77,7 +125,7 @@ export default function MindMapPanel({ data, onChange, onSave }: Props) {
   };
 
   const deleteNode = (pathStr: string) => {
-    if (pathStr === '') return; // Can't delete root
+    if (pathStr === '') return;
     const path = pathStr.split(',').map(Number);
     if (path.length === 0) return;
     const newTree = JSON.parse(JSON.stringify(tree));
@@ -209,58 +257,69 @@ export default function MindMapPanel({ data, onChange, onSave }: Props) {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {!editMode ? (
-        <>
-          <div className="flex-1 bg-gray-50 p-2 overflow-hidden min-h-[250px]">
-            <svg ref={svgRef} className="w-full h-full" style={{ minHeight: '250px' }} />
-          </div>
-          <div className="p-3 border-t border-gray-100 space-y-2">
-            <div className="overflow-auto max-h-[200px] border border-gray-100 rounded-lg p-2 bg-white">
-              {renderTreeNode(tree, '')}
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => { setEditMode(true); setTextData(nodeToText(tree)); }}
-                className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs border border-gray-200 rounded text-gray-600 hover:bg-gray-50"
-              >
-                <Edit3 className="w-3 h-3" />
-                文本编辑
-              </button>
-              <button
-                onClick={onSave}
-                className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
-              >
-                <Save className="w-3 h-3" />
-                保存
-              </button>
-            </div>
-          </div>
-        </>
-      ) : (
-        <div className="flex-1 flex flex-col p-3">
-          <p className="text-xs text-gray-500 mb-2">使用缩进表示层级（空格或Tab）</p>
-          <textarea
-            value={textData}
-            onChange={e => setTextData(e.target.value)}
-            className="flex-1 w-full p-3 border border-gray-200 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            placeholder="中心主题&#10;  子主题1&#10;    子子主题&#10;  子主题2"
-          />
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={handleTextSave}
-              className="flex-1 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
-            >
-              应用
-            </button>
-            <button
-              onClick={() => setEditMode(false)}
-              className="flex-1 py-1.5 text-xs border border-gray-200 rounded text-gray-600 hover:bg-gray-50"
-            >
-              取消
-            </button>
-          </div>
+      {/* SVG container - always rendered, hidden with CSS when in edit mode */}
+      <div 
+        className="flex-1 bg-gray-50 p-2 overflow-hidden min-h-[250px] relative"
+        style={{ display: editMode ? 'none' : 'block' }}
+      >
+        <svg ref={svgRef} className="w-full h-full" style={{ minHeight: '250px' }} />
+      </div>
+
+      {/* Edit mode - always rendered, hidden with CSS when not in edit mode */}
+      <div 
+        className="flex-1 flex flex-col p-3"
+        style={{ display: editMode ? 'flex' : 'none' }}
+      >
+        <p className="text-xs text-gray-500 mb-2">使用缩进表示层级（空格或Tab）</p>
+        <textarea
+          value={textData}
+          onChange={e => setTextData(e.target.value)}
+          className="flex-1 w-full p-3 border border-gray-200 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          placeholder={'中心主题\n  子主题1\n    子子主题\n  子主题2'}
+        />
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={handleTextSave}
+            className="flex-1 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+          >
+            应用
+          </button>
+          <button
+            onClick={() => setEditMode(false)}
+            className="flex-1 py-1.5 text-xs border border-gray-200 rounded text-gray-600 hover:bg-gray-50"
+          >
+            取消
+          </button>
         </div>
-      )}
+      </div>
+
+      {/* Controls */}
+      <div className="p-3 border-t border-gray-100 space-y-2">
+        <div className="overflow-auto max-h-[200px] border border-gray-100 rounded-lg p-2 bg-white">
+          {renderTreeNode(tree, '')}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { 
+              if (!editMode) {
+                setTextData(nodeToText(tree));
+              }
+              setEditMode(!editMode); 
+            }}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs border border-gray-200 rounded text-gray-600 hover:bg-gray-50"
+          >
+            <Edit3 className="w-3 h-3" />
+            {editMode ? '预览' : '文本编辑'}
+          </button>
+          <button
+            onClick={onSave}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+          >
+            <Save className="w-3 h-3" />
+            保存
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
