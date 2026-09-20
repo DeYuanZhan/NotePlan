@@ -164,7 +164,7 @@ export default function GoalDetail() {
             </button>
 
             <button
-              onClick={() => handleDelete(goal.id)}
+              onClick={(e) => { e.stopPropagation(); handleDelete(goal.id); }}
               className="p-1 hover:bg-red-50 rounded"
               title="删除"
             >
