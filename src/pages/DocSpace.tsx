@@ -106,7 +106,7 @@ export default function DocSpace() {
             </span>
           )}
 
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-0.5">
             <button
               onClick={e => { e.stopPropagation(); setRenamingId(doc.id); setRenameValue(doc.title); }}
               className="p-1 hover:bg-gray-200 rounded"
@@ -126,7 +126,7 @@ export default function DocSpace() {
               className="p-1 hover:bg-red-100 rounded"
               title="删除"
             >
-              <Trash2 className="w-3 h-3 text-red-400" />
+              <Trash2 className="w-3 h-3 text-red-500" />
             </button>
           </div>
         </div>

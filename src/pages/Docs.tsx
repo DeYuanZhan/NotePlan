@@ -171,16 +171,18 @@ export default function Docs() {
               onClick={() => navigate(`/docs/${space.id}`)}
             >
               <div className="h-24 bg-gradient-to-br from-indigo-400 to-purple-500 relative">
-                <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-3 right-3 flex gap-1">
                   <button
                     onClick={e => { e.stopPropagation(); setEditingId(space.id); setEditName(space.name); }}
-                    className="p-1.5 bg-white/90 rounded-lg hover:bg-white"
+                    className="p-1.5 bg-white/90 rounded-lg hover:bg-white shadow-sm"
+                    title="编辑"
                   >
                     <Edit2 className="w-3.5 h-3.5 text-gray-600" />
                   </button>
                   <button
                     onClick={e => handleDelete(space.id, e)}
-                    className="p-1.5 bg-white/90 rounded-lg hover:bg-white"
+                    className="p-1.5 bg-white/90 rounded-lg hover:bg-white shadow-sm"
+                    title="删除"
                   >
                     <Trash2 className="w-3.5 h-3.5 text-red-500" />
                   </button>
