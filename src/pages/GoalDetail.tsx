@@ -29,7 +29,7 @@ export default function GoalDetail() {
   const getChildren = (parentId: string) => goals.filter(g => g.parentId === parentId);
   
   const getLevelLabel = (level: GoalLevel) => {
-    const map: Record<GoalLevel, string> = { big: '大目标', phase: '阶段目标', small: '小目标', daily: '日目标', hourly: '小时目标' };
+    const map: Record<GoalLevel, string> = { big: '大目标', phase: '阶段目标', small: '小目标', daily: '日目标' };
     return map[level];
   };
 
@@ -38,14 +38,13 @@ export default function GoalDetail() {
       big: 'border-l-indigo-500 bg-indigo-50/50',
       phase: 'border-l-blue-500 bg-blue-50/50',
       small: 'border-l-green-500 bg-green-50/50',
-      daily: 'border-l-amber-500 bg-amber-50/50',
-      hourly: 'border-l-purple-500 bg-purple-50/50'
+      daily: 'border-l-amber-500 bg-amber-50/50'
     };
     return map[level];
   };
 
   const getNextLevel = (level: GoalLevel): GoalLevel | null => {
-    const map: Record<GoalLevel, GoalLevel | null> = { big: 'phase', phase: 'small', small: 'daily', daily: 'hourly', hourly: null };
+    const map: Record<GoalLevel, GoalLevel | null> = { big: 'phase', phase: 'small', small: 'daily', daily: null };
     return map[level];
   };
 

@@ -34,7 +34,7 @@ export interface Document {
   linkedGoalIds: string[];
 }
 
-export type GoalLevel = 'big' | 'phase' | 'small' | 'daily' | 'hourly';
+export type GoalLevel = 'big' | 'phase' | 'small' | 'daily';
 export type GoalStatus = 'not_started' | 'in_progress' | 'completed' | 'delayed' | 'archived';
 
 export interface Goal {

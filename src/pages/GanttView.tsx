@@ -60,7 +60,7 @@ export default function GanttView() {
   };
 
   const getLevelLabel = (level: GoalLevel) => {
-    const map: Record<GoalLevel, string> = { big: '大', phase: '阶', small: '小', daily: '日', hourly: '时' };
+    const map: Record<GoalLevel, string> = { big: '大', phase: '阶', small: '小', daily: '日' };
     return map[level];
   };
 
