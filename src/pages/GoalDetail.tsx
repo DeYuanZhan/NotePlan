@@ -52,14 +52,18 @@ export default function GoalDetail() {
     const nextLevel = getNextLevel(parentLevel);
     if (!nextLevel || !newChild.name.trim()) return;
     
+    // 如果是日目标且没有指定结束日期，默认设置为今天
+    const today = new Date().toISOString().slice(0, 10);
+    const defaultEndDate = nextLevel === 'daily' ? today : '';
+    
     createGoal({
       userId: rootGoal.userId,
       level: nextLevel,
       parentId,
       name: newChild.name.trim(),
       description: newChild.description.trim(),
-      startDate: newChild.startDate || new Date().toISOString().slice(0, 10),
-      endDate: newChild.endDate || '',
+      startDate: newChild.startDate || today,
+      endDate: newChild.endDate || defaultEndDate,
       status: 'not_started' as GoalStatus,
       linkedDocIds: []
     });

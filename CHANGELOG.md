@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.0] - 2026-01-XX
 
+### Fixed
+
+#### 今日任务清单显示问题修复
+- **修复日目标未显示问题**：创建日目标时自动设置 endDate 为今天
+- **改进过滤逻辑**：支持 endDate 或 startDate 匹配今日/昨日
+- **增强兼容性**：即使未设置 endDate，startDate 为今天的目标也会显示
+
 ### Changed
 
 #### 预警提醒模块优化
