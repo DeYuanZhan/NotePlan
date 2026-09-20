@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.0] - 2026-01-XX
 
+### Fixed
+
+#### 文件上传和预览功能修复
+- **修复文件无法打开的问题**：创建自定义 TipTap 扩展替代 HTML 插入
+- **修复文件无法下载的问题**：使用编程式下载替代 `<a>` 标签
+- **解决 TipTap HTML 净化问题**：使用 React 组件渲染附件节点
+- **优化大文件处理**：使用 Blob URL 打开文件，避免内存问题
+- **改进错误处理**：添加文件读取失败提示和文件大小检查
+
 ### Added
 
 #### 智能提醒系统

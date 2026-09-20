@@ -12,6 +12,7 @@ import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
+import { Attachment } from '../extensions/AttachmentExtension';
 import {
   ArrowLeft, Link2, X, Save, Bold, Italic, Underline as UnderlineIcon,
   Strikethrough, Highlighter, Code, List, ListOrdered, CheckSquare,
@@ -51,6 +52,7 @@ export default function DocEditor() {
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       TextStyle,
       Color,
+      Attachment,
     ],
     editorProps: {
       attributes: {
@@ -162,33 +164,24 @@ export default function DocEditor() {
         };
         reader.readAsDataURL(file);
       } else if (isPdf || isDocument) {
-        // PDF 或文档文件：插入为可打开的附件
+        // PDF 或文档文件：使用自定义附件节点
         const reader = new FileReader();
         reader.onload = (e) => {
           const base64 = e.target?.result as string;
           const fileSize = (file.size / 1024).toFixed(2);
-          const fileType = isPdf ? 'PDF' : '文档';
-          const fileIcon = isPdf ? '📄' : '📝';
+          const fileType = isPdf ? 'PDF' : 'Word';
           
-          // 创建可打开的附件（移除 download 属性，允许浏览器预览）
-          const attachmentHtml = `
-            <div class="attachment-block" data-file-type="${fileType}" style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin: 8px 0; background: #f9fafb; cursor: pointer; transition: all 0.2s;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 20px;">${fileIcon}</span>
-                <div style="flex: 1; min-width: 0;">
-                  <div style="font-weight: 500; color: #1f2937; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</div>
-                  <div style="font-size: 12px; color: #6b7280;">${fileType} · ${fileSize} KB</div>
-                </div>
-                <a href="${base64}" target="_blank" rel="noopener noreferrer" style="padding: 6px 12px; background: #4f46e5; color: white; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 500; white-space: nowrap;" onclick="event.stopPropagation();">
-                  打开
-                </a>
-                <a href="${base64}" download="${file.name}" style="padding: 6px 12px; background: #e5e7eb; color: #374151; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 500; white-space: nowrap;" onclick="event.stopPropagation();">
-                  下载
-                </a>
-              </div>
-            </div>
-          `;
-          editor.chain().focus().insertContent(attachmentHtml).run();
+          // 使用自定义附件节点插入
+          editor.chain().focus().insertContent({
+            type: 'attachment',
+            attrs: {
+              fileName: file.name,
+              fileSize: fileSize,
+              fileType: fileType,
+              fileData: base64,
+              mimeType: file.type
+            }
+          }).run();
           setUploading(false);
         };
         reader.onerror = () => {
