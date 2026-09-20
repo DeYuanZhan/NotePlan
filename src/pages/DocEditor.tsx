@@ -1,162 +1,122 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useDocStore, useGoalStore } from '../store';
-import { v4 as uuidv4 } from 'uuid';
-import { ArrowLeft, Plus, Trash2, Link2, X, Save, Image, Code, List, CheckSquare, Quote, Minus } from 'lucide-react';
-import type { DocBlock, Document } from '../store';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import Image from '@tiptap/extension-image';
+import Placeholder from '@tiptap/extension-placeholder';
+import Highlight from '@tiptap/extension-highlight';
+import Underline from '@tiptap/extension-underline';
+import TextAlign from '@tiptap/extension-text-align';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
+import {
+  ArrowLeft, Link2, X, Save, Bold, Italic, Underline as UnderlineIcon,
+  Strikethrough, Highlighter, Code, List, ListOrdered, CheckSquare,
+  Quote, Minus, Heading1, Heading2, Heading3, Image as ImageIcon,
+  Undo, Redo, AlignLeft, AlignCenter, AlignRight, Brain
+} from 'lucide-react';
+import MindMapPanel from '../components/MindMapPanel';
 
 export default function DocEditor() {
   const { spaceId, docId } = useParams();
   const navigate = useNavigate();
-  const { documents, updateDocument, linkGoalToDoc, unlinkGoalFromDoc, spaces } = useDocStore();
+  const { documents, updateDocument, linkGoalToDoc, unlinkGoalFromDoc } = useDocStore();
   const { goals, linkDocToGoal, unlinkDocFromGoal } = useGoalStore();
-  const [doc, setDoc] = useState<Document | null>(null);
+  const [doc, setDoc] = useState<any>(null);
   const [title, setTitle] = useState('');
-  const [blocks, setBlocks] = useState<DocBlock[]>([]);
   const [showGoalPanel, setShowGoalPanel] = useState(false);
-  const [showBlockMenu, setShowBlockMenu] = useState<string | null>(null);
+  const [showMindmap, setShowMindmap] = useState(false);
+  const [mindmapData, setMindmapData] = useState('');
+  const [saved, setSaved] = useState(true);
   const saveTimer = useRef<any>(null);
-  const lastSave = useRef<string>('');
+  const lastContent = useRef<string>('');
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+      }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      Image,
+      Placeholder.configure({ placeholder: '开始写作...' }),
+      Highlight,
+      Underline,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      TextStyle,
+      Color,
+    ],
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none focus:outline-none min-h-[400px] px-4 py-2',
+      },
+    },
+    onUpdate: ({ editor }) => {
+      setSaved(false);
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        if (doc) {
+          const content = editor.getHTML();
+          updateDocument(doc.id, { content, title });
+          lastContent.current = content;
+          setSaved(true);
+        }
+      }, 1500);
+    },
+  });
 
   useEffect(() => {
     const found = documents.find(d => d.id === docId);
     if (found) {
       setDoc(found);
       setTitle(found.title);
-      setBlocks(found.blocks.length > 0 ? found.blocks : [{ id: uuidv4(), type: 'paragraph', content: '' }]);
+      setMindmapData(found.mindmapData || '');
+      if (editor && found.content) {
+        editor.commands.setContent(found.content);
+        lastContent.current = found.content;
+      }
     }
   }, [docId, documents]);
 
-  // Auto-save
+  // Save title on change
   useEffect(() => {
-    const current = JSON.stringify({ title, blocks });
-    if (current === lastSave.current) return;
-    
+    if (!doc || !editor) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    setSaved(false);
     saveTimer.current = setTimeout(() => {
-      if (doc) {
-        updateDocument(doc.id, { title, blocks });
-        lastSave.current = current;
-      }
-    }, 1000);
-  }, [title, blocks]);
+      const content = editor.getHTML();
+      updateDocument(doc.id, { content, title });
+      setSaved(true);
+    }, 1500);
+  }, [title]);
 
-  const addBlock = (afterId: string, type: DocBlock['type']) => {
-    const newBlock: DocBlock = { id: uuidv4(), type, content: '' };
-    if (type === 'task') newBlock.checked = false;
-    const idx = blocks.findIndex(b => b.id === afterId);
-    const newBlocks = [...blocks];
-    newBlocks.splice(idx + 1, 0, newBlock);
-    setBlocks(newBlocks);
-    setShowBlockMenu(null);
-  };
+  const handleSave = useCallback(() => {
+    if (!doc || !editor) return;
+    const content = editor.getHTML();
+    updateDocument(doc.id, { content, title, mindmapData });
+    setSaved(true);
+  }, [doc, editor, title, mindmapData]);
 
-  const updateBlock = (id: string, data: Partial<DocBlock>) => {
-    setBlocks(blocks.map(b => b.id === id ? { ...b, ...data } : b));
-  };
-
-  const removeBlock = (id: string) => {
-    if (blocks.length <= 1) return;
-    setBlocks(blocks.filter(b => b.id !== id));
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent, blockId: string) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      addBlock(blockId, 'paragraph');
-    }
-    if (e.key === 'Backspace') {
-      const block = blocks.find(b => b.id === blockId);
-      if (block && block.content === '' && blocks.length > 1) {
+  // Keyboard shortcut for save
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
-        removeBlock(blockId);
+        handleSave();
       }
-    }
-  };
-
-  const renderBlock = (block: DocBlock, index: number) => {
-    const commonProps = {
-      value: block.content,
-      onChange: (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => updateBlock(block.id, { content: e.target.value }),
-      onKeyDown: (e: React.KeyboardEvent) => handleKeyDown(e, block.id),
-      className: 'w-full bg-transparent outline-none resize-none text-gray-800',
-      placeholder: getPlaceholder(block.type),
     };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleSave]);
 
-    switch (block.type) {
-      case 'heading1':
-        return <input {...commonProps} className={`${commonProps.className} text-2xl font-bold`} />;
-      case 'heading2':
-        return <input {...commonProps} className={`${commonProps.className} text-xl font-semibold`} />;
-      case 'heading3':
-        return <input {...commonProps} className={`${commonProps.className} text-lg font-medium`} />;
-      case 'paragraph':
-        return <textarea {...commonProps} rows={1} style={{ minHeight: '24px' }} />;
-      case 'list':
-        return (
-          <div className="flex items-start gap-2">
-            <span className="text-gray-400 mt-0.5">•</span>
-            <textarea {...commonProps} rows={1} style={{ minHeight: '24px' }} />
-          </div>
-        );
-      case 'task':
-        return (
-          <div className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              checked={block.checked || false}
-              onChange={e => updateBlock(block.id, { checked: e.target.checked })}
-              className="mt-1 rounded border-gray-300 text-indigo-600"
-            />
-            <textarea {...commonProps} rows={1} style={{ minHeight: '24px' }} className={`${commonProps.className} ${block.checked ? 'line-through text-gray-400' : ''}`} />
-          </div>
-        );
-      case 'quote':
-        return (
-          <div className="border-l-4 border-indigo-300 pl-4 py-1">
-            <textarea {...commonProps} rows={1} style={{ minHeight: '24px' }} className={`${commonProps.className} text-gray-600 italic`} />
-          </div>
-        );
-      case 'code':
-        return (
-          <div className="bg-gray-900 rounded-lg p-4">
-            <textarea {...commonProps} rows={3} className="w-full bg-transparent outline-none resize-none text-green-400 font-mono text-sm" placeholder="// 代码块" />
-          </div>
-        );
-      case 'image':
-        return (
-          <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center">
-            <Image className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-400">图片占位（{block.content || '未上传'}）</p>
-            <input
-              type="text"
-              value={block.content}
-              onChange={e => updateBlock(block.id, { content: e.target.value })}
-              className="mt-2 w-full px-3 py-1 border border-gray-200 rounded text-sm"
-              placeholder="输入图片URL"
-            />
-          </div>
-        );
-      case 'divider':
-        return <hr className="border-gray-200 my-2" />;
-      default:
-        return <textarea {...commonProps} rows={1} />;
+  const addImage = () => {
+    const url = window.prompt('输入图片URL:');
+    if (url && editor) {
+      editor.chain().focus().setImage({ src: url }).run();
     }
-  };
-
-  const getPlaceholder = (type: string) => {
-    const map: Record<string, string> = {
-      heading1: '标题 1',
-      heading2: '标题 2',
-      heading3: '标题 3',
-      paragraph: '输入内容，按 Enter 新建段落...',
-      list: '列表项',
-      task: '任务内容',
-      quote: '引用内容',
-      code: '// 输入代码',
-      image: '图片描述',
-    };
-    return map[type] || '';
   };
 
   const linkedGoals = goals.filter(g => doc?.linkedGoalIds.includes(g.id));
@@ -185,86 +145,152 @@ export default function DocEditor() {
     );
   }
 
+  if (!editor) return null;
+
   return (
     <div className="flex h-full">
-      {/* Editor */}
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-3xl mx-auto p-8">
-          <button onClick={() => navigate(`/docs/${spaceId}`)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6">
-            <ArrowLeft className="w-4 h-4" />
-            返回文档树
-          </button>
-
-          <input
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            className="w-full text-3xl font-bold text-gray-900 outline-none mb-6 bg-transparent"
-            placeholder="文档标题"
-          />
-
-          <div className="space-y-1">
-            {blocks.map((block, index) => (
-              <div key={block.id} className="group relative flex items-start gap-1">
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pt-1">
-                  <button
-                    onClick={() => setShowBlockMenu(showBlockMenu === block.id ? null : block.id)}
-                    className="p-0.5 hover:bg-gray-100 rounded"
-                  >
-                    <Plus className="w-4 h-4 text-gray-400" />
-                  </button>
-                  {blocks.length > 1 && (
-                    <button onClick={() => removeBlock(block.id)} className="p-0.5 hover:bg-red-50 rounded">
-                      <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
-                    </button>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  {renderBlock(block, index)}
-                </div>
-
-                {showBlockMenu === block.id && (
-                  <div className="absolute left-8 top-8 z-10 bg-white border border-gray-200 rounded-lg shadow-lg p-2 w-48">
-                    <p className="text-xs text-gray-400 px-2 py-1">插入内容块</p>
-                    {[
-                      { type: 'heading1' as const, label: '标题 1', icon: 'H1' },
-                      { type: 'heading2' as const, label: '标题 2', icon: 'H2' },
-                      { type: 'heading3' as const, label: '标题 3', icon: 'H3' },
-                      { type: 'paragraph' as const, label: '段落', icon: 'P' },
-                      { type: 'list' as const, label: '无序列表', icon: '•' },
-                      { type: 'task' as const, label: '任务复选框', icon: '☐' },
-                      { type: 'quote' as const, label: '引用', icon: '"' },
-                      { type: 'code' as const, label: '代码块', icon: '<>' },
-                      { type: 'image' as const, label: '图片', icon: '🖼' },
-                      { type: 'divider' as const, label: '分割线', icon: '—' },
-                    ].map(item => (
-                      <button
-                        key={item.type}
-                        onClick={() => addBlock(block.id, item.type)}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded"
-                      >
-                        <span className="w-6 text-center text-gray-400 font-mono text-xs">{item.icon}</span>
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+      {/* Main Editor Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Toolbar */}
+        <div className="border-b border-gray-200 bg-white px-4 py-2">
+          <div className="flex items-center justify-between mb-2">
+            <button onClick={() => navigate(`/docs/${spaceId}`)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+              <ArrowLeft className="w-4 h-4" />
+              返回
+            </button>
+            <div className="flex items-center gap-2">
+              {saved ? (
+                <span className="text-xs text-green-600">已保存</span>
+              ) : (
+                <span className="text-xs text-amber-600">保存中...</span>
+              )}
+              <button onClick={handleSave} className="flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700">
+                <Save className="w-3 h-3" />
+                保存
+              </button>
+            </div>
           </div>
+          
+          {/* Formatting Toolbar */}
+          <div className="flex items-center gap-0.5 flex-wrap">
+            <ToolbarButton onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="撤销">
+              <Undo className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="重做">
+              <Redo className="w-4 h-4" />
+            </ToolbarButton>
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+            <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title="标题1">
+              <Heading1 className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="标题2">
+              <Heading2 className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title="标题3">
+              <Heading3 className="w-4 h-4" />
+            </ToolbarButton>
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+            <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="粗体">
+              <Bold className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="斜体">
+              <Italic className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="下划线">
+              <UnderlineIcon className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title="删除线">
+              <Strikethrough className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} title="高亮">
+              <Highlighter className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="行内代码">
+              <Code className="w-4 h-4" />
+            </ToolbarButton>
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+            <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="无序列表">
+              <List className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="有序列表">
+              <ListOrdered className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive('taskList')} title="任务列表">
+              <CheckSquare className="w-4 h-4" />
+            </ToolbarButton>
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+            <ToolbarButton onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title="引用">
+              <Quote className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title="代码块">
+              <Code className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} title="分割线">
+              <Minus className="w-4 h-4" />
+            </ToolbarButton>
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+            <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title="左对齐">
+              <AlignLeft className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title="居中">
+              <AlignCenter className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title="右对齐">
+              <AlignRight className="w-4 h-4" />
+            </ToolbarButton>
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+            <ToolbarButton onClick={addImage} title="插入图片">
+              <ImageIcon className="w-4 h-4" />
+            </ToolbarButton>
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+            <ToolbarButton onClick={() => setShowMindmap(!showMindmap)} active={showMindmap} title="思维导图">
+              <Brain className="w-4 h-4" />
+            </ToolbarButton>
+          </div>
+        </div>
 
-          <button
-            onClick={() => addBlock(blocks[blocks.length - 1]?.id || '', 'paragraph')}
-            className="mt-4 flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600"
-          >
-            <Plus className="w-4 h-4" />
-            添加内容块
-          </button>
+        {/* Title & Content */}
+        <div className="flex-1 overflow-auto bg-white">
+          <div className="max-w-4xl mx-auto py-8 px-8">
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className="w-full text-3xl font-bold text-gray-900 outline-none mb-6 bg-transparent placeholder-gray-300"
+              placeholder="文档标题"
+            />
+            <EditorContent editor={editor} />
+          </div>
         </div>
       </div>
 
+      {/* Mindmap Panel */}
+      {showMindmap && (
+        <div className="w-96 border-l border-gray-200 bg-white flex flex-col">
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <Brain className="w-4 h-4 text-indigo-600" />
+              思维导图
+            </h3>
+            <button onClick={() => setShowMindmap(false)}>
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          </div>
+          <MindMapPanel
+            data={mindmapData}
+            onChange={setMindmapData}
+            onSave={() => {
+              if (doc) {
+                updateDocument(doc.id, { mindmapData });
+                setSaved(true);
+              }
+            }}
+          />
+        </div>
+      )}
+
       {/* Goal Link Panel */}
-      <div className="w-72 border-l border-gray-200 bg-white flex flex-col">
+      <div className="w-64 border-l border-gray-200 bg-white flex flex-col">
         <div className="p-4 border-b border-gray-100">
           <button
             onClick={() => setShowGoalPanel(!showGoalPanel)}
@@ -283,7 +309,9 @@ export default function DocEditor() {
                 <div className="space-y-2">
                   {linkedGoals.map(g => (
                     <div key={g.id} className="flex items-center justify-between p-2 bg-indigo-50 rounded-lg">
-                      <span className="text-sm text-indigo-700 truncate">{g.name}</span>
+                      <Link to={`/goals/${g.id}`} className="text-sm text-indigo-700 truncate hover:underline flex-1">
+                        {g.name}
+                      </Link>
                       <button onClick={() => handleUnlinkGoal(g.id)}>
                         <X className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
                       </button>
@@ -317,5 +345,24 @@ export default function DocEditor() {
         )}
       </div>
     </div>
+  );
+}
+
+function ToolbarButton({ children, onClick, active, disabled, title }: {
+  children: React.ReactNode;
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  title?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed ${active ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
+    >
+      {children}
+    </button>
   );
 }

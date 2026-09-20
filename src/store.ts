@@ -10,28 +10,6 @@ export interface User {
   avatar: string;
 }
 
-export interface DocBlock {
-  id: string;
-  type: 'heading1' | 'heading2' | 'heading3' | 'paragraph' | 'list' | 'task' | 'quote' | 'code' | 'image' | 'divider';
-  content: string;
-  checked?: boolean;
-  language?: string;
-}
-
-export interface Document {
-  id: string;
-  spaceId: string;
-  parentId: string | null;
-  title: string;
-  blocks: DocBlock[];
-  isFolder: boolean;
-  order: number;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt?: string;
-  linkedGoalIds: string[];
-}
-
 export interface KnowledgeSpace {
   id: string;
   userId: string;
@@ -39,6 +17,21 @@ export interface KnowledgeSpace {
   description: string;
   cover: string;
   createdAt: string;
+}
+
+export interface Document {
+  id: string;
+  spaceId: string;
+  parentId: string | null;
+  title: string;
+  content: string; // HTML content from rich text editor
+  mindmapData: string; // JSON string for mindmap data
+  isFolder: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
+  linkedGoalIds: string[];
 }
 
 export type GoalLevel = 'big' | 'phase' | 'small' | 'daily' | 'hourly';
@@ -105,7 +98,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       email,
       password,
       nickname,
-      avatar: `https://api.dicebear.com/72/${encodeURIComponent(email)}.svg`
+      avatar: ''
     };
     const users = [...state.users, newUser];
     set({ users, currentUser: newUser });
@@ -127,9 +120,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.setItem('np_currentUser', JSON.stringify(updated));
   },
   loadFromStorage: () => {
-    const users = JSON.parse(localStorage.getItem('np_users') || '[]');
-    const currentUser = JSON.parse(localStorage.getItem('np_currentUser') || 'null');
-    set({ users, currentUser });
+    try {
+      const users = JSON.parse(localStorage.getItem('np_users') || '[]');
+      const currentUser = JSON.parse(localStorage.getItem('np_currentUser') || 'null');
+      set({ users, currentUser });
+    } catch (e) {
+      console.error('Failed to load auth from storage', e);
+    }
   }
 }));
 
@@ -188,7 +185,8 @@ export const useDocStore = create<DocState>((set, get) => ({
       spaceId,
       parentId,
       title,
-      blocks: [{ id: uuidv4(), type: 'paragraph', content: '' }],
+      content: '',
+      mindmapData: '',
       isFolder,
       order: docs.length,
       createdAt: new Date().toISOString(),
@@ -235,14 +233,18 @@ export const useDocStore = create<DocState>((set, get) => ({
   },
   unlinkGoalFromDoc: (docId, goalId) => {
     set(s => ({
-      documents: s.documents.map(d => d.id === docId ? { ...d, linkedGoalIds: d.linkedGoalIds.filter(id => id !== goalId) } : d)
+      documents: s.documents.map(d => d.id === docId ? { ...d, linkedGoalIds: d.linkedGoalIds.filter(gid => gid !== goalId) } : d)
     }));
     get().saveToStorage();
   },
   loadFromStorage: () => {
-    const spaces = JSON.parse(localStorage.getItem('np_spaces') || '[]');
-    const documents = JSON.parse(localStorage.getItem('np_documents') || '[]');
-    set({ spaces, documents });
+    try {
+      const spaces = JSON.parse(localStorage.getItem('np_spaces') || '[]');
+      const documents = JSON.parse(localStorage.getItem('np_documents') || '[]');
+      set({ spaces, documents });
+    } catch (e) {
+      console.error('Failed to load docs from storage', e);
+    }
   },
   saveToStorage: () => {
     const state = get();
@@ -290,7 +292,16 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     get().saveToStorage();
   },
   deleteGoal: (id) => {
-    set(s => ({ goals: s.goals.filter(g => g.id !== id) }));
+    // Also delete all children recursively
+    const deleteRecursive = (goalId: string, goalList: Goal[]): Goal[] => {
+      const children = goalList.filter(g => g.parentId === goalId);
+      let result = goalList.filter(g => g.id !== goalId);
+      for (const child of children) {
+        result = deleteRecursive(child.id, result);
+      }
+      return result;
+    };
+    set(s => ({ goals: deleteRecursive(id, s.goals) }));
     get().saveToStorage();
   },
   toggleGoalComplete: (id) => {
@@ -299,7 +310,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     if (!goal) return;
     const newCompleted = !goal.completed;
     set(s => ({
-      goals: s.goals.map(g => g.id === id ? { ...g, completed: newCompleted, status: newCompleted ? 'completed' : 'in_progress' } : g)
+      goals: s.goals.map(g => g.id === id ? { ...g, completed: newCompleted, status: newCompleted ? 'completed' as GoalStatus : 'in_progress' as GoalStatus } : g)
     }));
     // Recalculate parent progress
     if (goal.parentId) {
@@ -331,7 +342,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   },
   unlinkDocFromGoal: (goalId, docId) => {
     set(s => ({
-      goals: s.goals.map(g => g.id === goalId ? { ...g, linkedDocIds: g.linkedDocIds.filter(id => id !== docId) } : g)
+      goals: s.goals.map(g => g.id === goalId ? { ...g, linkedDocIds: g.linkedDocIds.filter(did => did !== docId) } : g)
     }));
     get().saveToStorage();
   },
@@ -345,9 +356,13 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     get().saveToStorage();
   },
   loadFromStorage: () => {
-    const goals = JSON.parse(localStorage.getItem('np_goals') || '[]');
-    const reviews = JSON.parse(localStorage.getItem('np_reviews') || '[]');
-    set({ goals, reviews });
+    try {
+      const goals = JSON.parse(localStorage.getItem('np_goals') || '[]');
+      const reviews = JSON.parse(localStorage.getItem('np_reviews') || '[]');
+      set({ goals, reviews });
+    } catch (e) {
+      console.error('Failed to load goals from storage', e);
+    }
   },
   saveToStorage: () => {
     const state = get();

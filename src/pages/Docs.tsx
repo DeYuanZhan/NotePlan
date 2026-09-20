@@ -4,7 +4,7 @@ import { useDocStore } from '../store';
 import { Plus, BookOpen, Trash2, Edit2, FolderOpen } from 'lucide-react';
 
 export default function Docs() {
-  const { spaces, documents, createSpace, deleteSpace, updateSpace } = useDocStore();
+  const { spaces, documents, createSpace, deleteSpace, updateSpace, restoreDocument, permanentDelete } = useDocStore();
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -21,19 +21,21 @@ export default function Docs() {
     setShowCreate(false);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (confirm('确定删除该知识库？所有文档将被一并删除。')) {
       deleteSpace(id);
     }
   };
 
   const handleEdit = (id: string) => {
-    updateSpace(id, { name: editName });
+    if (editName.trim()) {
+      updateSpace(id, { name: editName.trim() });
+    }
     setEditingId(null);
   };
 
   const deletedDocs = documents.filter(d => d.deletedAt);
-  const { restoreDocument, permanentDelete } = useDocStore();
 
   const getDocCount = (spaceId: string) => {
     return documents.filter(d => d.spaceId === spaceId && !d.deletedAt && !d.isFolder).length;
@@ -48,7 +50,7 @@ export default function Docs() {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => setShowRecycleBin(!showRecycleBin)}
+            onClick={() => setShowRecycleBin(true)}
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
           >
             <Trash2 className="w-4 h-4" />
@@ -78,6 +80,7 @@ export default function Docs() {
                   onChange={e => setNewName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                   placeholder="知识库名称"
+                  autoFocus
                 />
               </div>
               <div>
@@ -132,7 +135,7 @@ export default function Docs() {
                         恢复
                       </button>
                       <button
-                        onClick={() => permanentDelete(doc.id)}
+                        onClick={() => { if (confirm('确定永久删除？')) permanentDelete(doc.id); }}
                         className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded hover:bg-red-100"
                       >
                         永久删除
@@ -176,7 +179,7 @@ export default function Docs() {
                     <Edit2 className="w-3.5 h-3.5 text-gray-600" />
                   </button>
                   <button
-                    onClick={e => { e.stopPropagation(); handleDelete(space.id); }}
+                    onClick={e => handleDelete(space.id, e)}
                     className="p-1.5 bg-white/90 rounded-lg hover:bg-white"
                   >
                     <Trash2 className="w-3.5 h-3.5 text-red-500" />
@@ -190,7 +193,10 @@ export default function Docs() {
                     value={editName}
                     onChange={e => setEditName(e.target.value)}
                     onBlur={() => handleEdit(space.id)}
-                    onKeyDown={e => e.key === 'Enter' && handleEdit(space.id)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleEdit(space.id);
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
                     onClick={e => e.stopPropagation()}
                     className="w-full px-2 py-1 border border-indigo-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     autoFocus

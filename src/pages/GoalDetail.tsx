@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useGoalStore, useDocStore } from '../store';
-import { ArrowLeft, Plus, ChevronDown, ChevronRight, CheckCircle2, Circle, Link2, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, ChevronDown, ChevronRight, CheckCircle2, Circle, Link2, X, Trash2, Edit3, Save } from 'lucide-react';
 import type { GoalLevel, GoalStatus } from '../store';
 
 export default function GoalDetail() {
@@ -13,6 +13,8 @@ export default function GoalDetail() {
   const [showAddChild, setShowAddChild] = useState<string | null>(null);
   const [newChild, setNewChild] = useState({ name: '', startDate: '', endDate: '', description: '' });
   const [showDocPanel, setShowDocPanel] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [editData, setEditData] = useState({ name: '', description: '', startDate: '', endDate: '', status: 'not_started' as GoalStatus });
 
   const rootGoal = goals.find(g => g.id === goalId);
   if (!rootGoal) {
@@ -67,6 +69,20 @@ export default function GoalDetail() {
     if (!expanded.includes(parentId)) setExpanded([...expanded, parentId]);
   };
 
+  const handleEditSave = (goalId: string) => {
+    updateGoal(goalId, editData);
+    setEditingGoalId(null);
+  };
+
+  const handleDelete = (goalId: string) => {
+    if (confirm('确定删除该目标？所有子目标将一并删除。')) {
+      deleteGoal(goalId);
+      if (goalId === rootGoal.id) {
+        navigate('/goals');
+      }
+    }
+  };
+
   const toggleExpand = (id: string) => {
     setExpanded(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
@@ -79,6 +95,7 @@ export default function GoalDetail() {
     const isExpanded = expanded.includes(goal.id);
     const progress = getGoalProgress(goal.id);
     const nextLevel = getNextLevel(goal.level);
+    const isEditing = editingGoalId === goal.id;
 
     return (
       <div className={`${depth > 0 ? 'ml-6 border-l-2 border-gray-100 pl-4' : ''}`}>
@@ -91,7 +108,7 @@ export default function GoalDetail() {
             )}
             {children.length === 0 && <span className="w-4" />}
             
-            <button onClick={() => toggleGoalComplete(goal.id)}>
+            <button onClick={() => toggleGoalComplete(goal.id)} title={goal.completed ? '标记未完成' : '标记完成'}>
               {goal.completed ? (
                 <CheckCircle2 className="w-5 h-5 text-green-500" />
               ) : (
@@ -136,13 +153,88 @@ export default function GoalDetail() {
             )}
 
             <button
-              onClick={() => { if (confirm('确定删除？')) deleteGoal(goal.id); }}
+              onClick={() => {
+                setEditingGoalId(goal.id);
+                setEditData({ name: goal.name, description: goal.description, startDate: goal.startDate?.slice(0, 10) || '', endDate: goal.endDate?.slice(0, 10) || '', status: goal.status });
+              }}
+              className="p-1 hover:bg-blue-50 rounded"
+              title="编辑"
+            >
+              <Edit3 className="w-3.5 h-3.5 text-gray-400 hover:text-blue-500" />
+            </button>
+
+            <button
+              onClick={() => handleDelete(goal.id)}
               className="p-1 hover:bg-red-50 rounded"
+              title="删除"
             >
               <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
             </button>
           </div>
 
+          {/* Edit Form */}
+          {isEditing && (
+            <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={editData.name}
+                  onChange={e => setEditData({ ...editData, name: e.target.value })}
+                  className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  placeholder="名称"
+                />
+                <textarea
+                  value={editData.description}
+                  onChange={e => setEditData({ ...editData, description: e.target.value })}
+                  className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                  rows={2}
+                  placeholder="描述"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={editData.startDate}
+                    onChange={e => setEditData({ ...editData, startDate: e.target.value })}
+                    className="px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <input
+                    type="date"
+                    value={editData.endDate}
+                    onChange={e => setEditData({ ...editData, endDate: e.target.value })}
+                    className="px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <select
+                  value={editData.status}
+                  onChange={e => setEditData({ ...editData, status: e.target.value as GoalStatus })}
+                  className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="not_started">未开始</option>
+                  <option value="in_progress">进行中</option>
+                  <option value="completed">已完成</option>
+                  <option value="delayed">延期</option>
+                  <option value="archived">已归档</option>
+                </select>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEditSave(goal.id)}
+                    className="px-3 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 flex items-center gap-1"
+                  >
+                    <Save className="w-3 h-3" />
+                    保存
+                  </button>
+                  <button
+                    onClick={() => setEditingGoalId(null)}
+                    className="px-3 py-1 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-50"
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Add Child Form */}
           {showAddChild === goal.id && (
             <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
               <p className="text-xs text-gray-500 mb-2">新建 {getLevelLabel(nextLevel!)}</p>
@@ -266,7 +358,7 @@ export default function GoalDetail() {
                       {doc.title}
                     </Link>
                     <button onClick={() => { unlinkDocFromGoal(rootGoal.id, doc.id); }}>
-                      <X className="w-3.5 h-3.5 text-gray-400" />
+                      <X className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
                     </button>
                   </div>
                 ))}

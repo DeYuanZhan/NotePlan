@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGoalStore, useAuthStore } from '../store';
-import { Plus, Target, ChevronRight, Calendar, Trash2 } from 'lucide-react';
+import { Plus, Target, ChevronRight, Calendar, Trash2, Edit3 } from 'lucide-react';
 import type { GoalStatus } from '../store';
 
 export default function Goals() {
-  const { goals, createGoal, deleteGoal, getGoalProgress } = useGoalStore();
+  const { goals, createGoal, updateGoal, deleteGoal, getGoalProgress } = useGoalStore();
   const { currentUser } = useAuthStore();
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<string | null>(null);
+  const [editData, setEditData] = useState({ name: '', description: '', startDate: '', endDate: '', priority: 3, status: 'in_progress' as GoalStatus });
   const [newGoal, setNewGoal] = useState({
     name: '',
     description: '',
@@ -37,6 +39,19 @@ export default function Goals() {
     setShowCreate(false);
   };
 
+  const handleEditSave = () => {
+    if (!editingGoal) return;
+    updateGoal(editingGoal, editData);
+    setEditingGoal(null);
+  };
+
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('确定删除该目标？所有子目标将一并删除。')) {
+      deleteGoal(id);
+    }
+  };
+
   const getStatusColor = (status: GoalStatus) => {
     const map: Record<GoalStatus, string> = {
       not_started: 'bg-gray-100 text-gray-700',
@@ -57,12 +72,6 @@ export default function Goals() {
       archived: '已归档'
     };
     return map[status];
-  };
-
-  const getPriorityColor = (p: number) => {
-    if (p >= 4) return 'text-red-500';
-    if (p >= 3) return 'text-amber-500';
-    return 'text-gray-400';
   };
 
   return (
@@ -95,6 +104,7 @@ export default function Goals() {
                   onChange={e => setNewGoal({ ...newGoal, name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                   placeholder="例如：完成年度学习计划"
+                  autoFocus
                 />
               </div>
               <div>
@@ -154,6 +164,91 @@ export default function Goals() {
         </div>
       )}
 
+      {/* Edit Modal */}
+      {editingGoal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">编辑目标</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">目标名称</label>
+                <input
+                  type="text"
+                  value={editData.name}
+                  onChange={e => setEditData({ ...editData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                <textarea
+                  value={editData.description}
+                  onChange={e => setEditData({ ...editData, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                  rows={3}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">开始时间</label>
+                  <input
+                    type="date"
+                    value={editData.startDate}
+                    onChange={e => setEditData({ ...editData, startDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">截止时间</label>
+                  <input
+                    type="date"
+                    value={editData.endDate}
+                    onChange={e => setEditData({ ...editData, endDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">状态</label>
+                <select
+                  value={editData.status}
+                  onChange={e => setEditData({ ...editData, status: e.target.value as GoalStatus })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="not_started">未开始</option>
+                  <option value="in_progress">进行中</option>
+                  <option value="completed">已完成</option>
+                  <option value="delayed">延期</option>
+                  <option value="archived">已归档</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">优先级</label>
+                <select
+                  value={editData.priority}
+                  onChange={e => setEditData({ ...editData, priority: Number(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  <option value={1}>低</option>
+                  <option value={2}>中</option>
+                  <option value={3}>高</option>
+                  <option value={4}>紧急</option>
+                  <option value={5}>最高</option>
+                </select>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button onClick={() => setEditingGoal(null)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+                  取消
+                </button>
+                <button onClick={handleEditSave} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                  保存
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Goals List */}
       {bigGoals.length === 0 ? (
         <div className="text-center py-16">
@@ -182,12 +277,24 @@ export default function Goals() {
                     </div>
                     <p className="text-sm text-gray-500 mt-1 line-clamp-2">{goal.description}</p>
                   </div>
-                  <button
-                    onClick={e => { e.stopPropagation(); if (confirm('确定删除该目标？所有子目标将一并删除。')) deleteGoal(goal.id); }}
-                    className="p-1 hover:bg-red-50 rounded"
-                  >
-                    <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-500" />
-                  </button>
+                  <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        setEditingGoal(goal.id);
+                        setEditData({ name: goal.name, description: goal.description, startDate: goal.startDate?.slice(0, 10) || '', endDate: goal.endDate?.slice(0, 10) || '', priority: goal.priority || 3, status: goal.status });
+                      }}
+                      className="p-1.5 hover:bg-blue-50 rounded-lg"
+                    >
+                      <Edit3 className="w-4 h-4 text-gray-400 hover:text-blue-500" />
+                    </button>
+                    <button
+                      onClick={e => handleDelete(goal.id, e)}
+                      className="p-1.5 hover:bg-red-50 rounded-lg"
+                    >
+                      <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-500" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-4 text-xs text-gray-400 mb-3">
