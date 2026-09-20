@@ -16,7 +16,7 @@ import {
   ArrowLeft, Link2, X, Save, Bold, Italic, Underline as UnderlineIcon,
   Strikethrough, Highlighter, Code, List, ListOrdered, CheckSquare,
   Quote, Minus, Heading1, Heading2, Heading3, Image as ImageIcon,
-  Undo, Redo, AlignLeft, AlignCenter, AlignRight, Brain
+  Undo, Redo, AlignLeft, AlignCenter, AlignRight, Brain, Upload, FileText
 } from 'lucide-react';
 import MindMapPanel from '../components/MindMapPanel';
 
@@ -31,8 +31,11 @@ export default function DocEditor() {
   const [showMindmap, setShowMindmap] = useState(false);
   const [mindmapData, setMindmapData] = useState('');
   const [saved, setSaved] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const saveTimer = useRef<any>(null);
   const lastContent = useRef<string>('');
+  const dragCounter = useRef(0);
 
   const editor = useEditor({
     extensions: [
@@ -127,6 +130,160 @@ export default function DocEditor() {
       editor.chain().focus().setImage({ src: url }).run();
     }
   };
+
+  // 文件上传处理
+  const handleFileUpload = useCallback(async (file: File) => {
+    if (!editor) return;
+
+    setUploading(true);
+    try {
+      // 检查文件类型
+      const isImage = file.type.startsWith('image/');
+      const isPdf = file.type === 'application/pdf';
+      const isText = file.type.startsWith('text/') || 
+                     file.name.endsWith('.md') || 
+                     file.name.endsWith('.markdown');
+      const isDocument = file.type === 'application/msword' || 
+                        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                        file.name.endsWith('.doc') || 
+                        file.name.endsWith('.docx');
+
+      if (isImage) {
+        // 图片文件：转换为 base64 插入
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const base64 = e.target?.result as string;
+          editor.chain().focus().setImage({ src: base64, alt: file.name }).run();
+          setUploading(false);
+        };
+        reader.onerror = () => {
+          alert('图片读取失败');
+          setUploading(false);
+        };
+        reader.readAsDataURL(file);
+      } else if (isPdf || isDocument) {
+        // PDF 或文档文件：插入为附件链接
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const base64 = e.target?.result as string;
+          const fileSize = (file.size / 1024).toFixed(2);
+          const attachmentHtml = `
+            <div class="attachment-block" style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin: 8px 0; background: #f9fafb;">
+              <a href="${base64}" download="${file.name}" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: #4f46e5;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <span style="flex: 1;">${file.name}</span>
+                <span style="font-size: 12px; color: #6b7280;">${fileSize} KB</span>
+              </a>
+            </div>
+          `;
+          editor.chain().focus().insertContent(attachmentHtml).run();
+          setUploading(false);
+        };
+        reader.onerror = () => {
+          alert('文件读取失败');
+          setUploading(false);
+        };
+        reader.readAsDataURL(file);
+      } else if (isText) {
+        // 文本文件：读取内容插入
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const text = e.target?.result as string;
+          const codeBlockHtml = `<pre><code>${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
+          editor.chain().focus().insertContent(codeBlockHtml).run();
+          setUploading(false);
+        };
+        reader.onerror = () => {
+          alert('文件读取失败');
+          setUploading(false);
+        };
+        reader.readAsText(file);
+      } else {
+        alert('不支持的文件类型');
+        setUploading(false);
+      }
+    } catch (error) {
+      console.error('文件上传失败:', error);
+      alert('文件上传失败');
+      setUploading(false);
+    }
+  }, [editor]);
+
+  // 处理多个文件
+  const handleFiles = useCallback((files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    fileArray.forEach((file, index) => {
+      setTimeout(() => handleFileUpload(file), index * 100);
+    });
+  }, [handleFileUpload]);
+
+  // 拖拽事件处理
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files);
+      e.dataTransfer.clearData();
+    }
+  }, [handleFiles]);
+
+  // 粘贴事件处理
+  useEffect(() => {
+    if (!editor) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const files: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === 'file') {
+          const file = items[i].getAsFile();
+          if (file) files.push(file);
+        }
+      }
+
+      if (files.length > 0) {
+        e.preventDefault();
+        handleFiles(files);
+      }
+    };
+
+    const editorElement = editor.view.dom;
+    editorElement.addEventListener('paste', handlePaste);
+    return () => {
+      editorElement.removeEventListener('paste', handlePaste);
+    };
+  }, [editor, handleFiles]);
 
   const linkedGoals = goals.filter(g => doc?.linkedGoalIds.includes(g.id));
   const availableGoals = goals.filter(g => !doc?.linkedGoalIds.includes(g.id));
@@ -251,6 +408,21 @@ export default function DocEditor() {
             <ToolbarButton onClick={addImage} title="插入图片">
               <ImageIcon className="w-4 h-4" />
             </ToolbarButton>
+            <ToolbarButton onClick={() => {
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.multiple = true;
+              input.accept = 'image/*,.pdf,.doc,.docx,.txt,.md,.markdown';
+              input.onchange = (e) => {
+                const files = (e.target as HTMLInputElement).files;
+                if (files && files.length > 0) {
+                  handleFiles(files);
+                }
+              };
+              input.click();
+            }} title="上传文件">
+              <Upload className="w-4 h-4" />
+            </ToolbarButton>
             <div className="w-px h-5 bg-gray-200 mx-1" />
             <ToolbarButton onClick={() => setShowMindmap(!showMindmap)} active={showMindmap} title="思维导图">
               <Brain className="w-4 h-4" />
@@ -259,7 +431,34 @@ export default function DocEditor() {
         </div>
 
         {/* Title & Content */}
-        <div className="flex-1 overflow-auto bg-white">
+        <div 
+          className="flex-1 overflow-auto bg-white relative"
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {/* 拖拽上传提示层 */}
+          {isDragging && (
+            <div className="absolute inset-0 z-50 bg-indigo-50/95 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-indigo-100 mb-4">
+                  <Upload className="w-10 h-10 text-indigo-600 animate-bounce" />
+                </div>
+                <p className="text-xl font-semibold text-indigo-700 mb-2">释放文件以上传</p>
+                <p className="text-sm text-indigo-500">支持图片、PDF、文档、文本文件</p>
+              </div>
+            </div>
+          )}
+
+          {/* 上传中提示 */}
+          {uploading && (
+            <div className="absolute top-4 right-4 z-40 bg-white border border-indigo-200 rounded-lg shadow-lg px-4 py-3 flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-indigo-700 font-medium">正在上传文件...</span>
+            </div>
+          )}
+
           <div className="max-w-4xl mx-auto py-8 px-8">
             <input
               type="text"
@@ -269,6 +468,16 @@ export default function DocEditor() {
               placeholder="文档标题"
             />
             <EditorContent editor={editor} />
+            
+            {/* 拖拽上传提示（空文档时显示） */}
+            {editor.isEmpty && !isDragging && (
+              <div className="mt-8 border-2 border-dashed border-gray-200 rounded-lg p-8 text-center hover:border-indigo-300 transition-colors">
+                <Upload className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 mb-2">拖拽文件到此处上传</p>
+                <p className="text-sm text-gray-400">支持图片、PDF、Word、文本文件</p>
+                <p className="text-xs text-gray-400 mt-2">也可以直接粘贴图片 (Ctrl+V)</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -166,3 +166,31 @@ html, body, #root {
 .markmap-node text {
   font-size: 13px;
 }
+
+/* Attachment block styles */
+.attachment-block {
+  transition: all 0.2s ease;
+}
+
+.attachment-block:hover {
+  background-color: #f3f4f6 !important;
+  border-color: #4f46e5 !important;
+}
+
+.attachment-block a:hover {
+  color: #4338ca !important;
+}
+
+/* Drag and drop styles */
+.drag-over {
+  animation: pulse-border 1s infinite;
+}
+
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: #6366f1;
+  }
+  50% {
+    border-color: #a5b4fc;
+  }
+}
