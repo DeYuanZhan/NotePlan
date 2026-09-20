@@ -288,8 +288,8 @@ export default function Home() {
                     <Play className="w-4 h-4 text-blue-600" />
                     <p className="text-sm font-medium text-blue-700">今日开始 ({todayStartGoals.length})</p>
                   </div>
-                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                    {todayStartGoals.slice(0, 5).map(goal => (
+                  <div className="space-y-1.5">
+                    {todayStartGoals.map(goal => (
                       <div key={goal.id} className="flex items-start gap-2 text-xs">
                         <span className={`px-1.5 py-0.5 rounded ${getLevelColor(goal.level)} font-medium`}>
                           {getLevelLabel(goal.level)}
@@ -298,9 +298,6 @@ export default function Home() {
                         <span className="text-blue-600 font-medium whitespace-nowrap">今天开始</span>
                       </div>
                     ))}
-                    {todayStartGoals.length > 5 && (
-                      <p className="text-xs text-blue-600 text-center">还有 {todayStartGoals.length - 5} 项...</p>
-                    )}
                   </div>
                 </div>
               )}
@@ -312,8 +309,8 @@ export default function Home() {
                     <Clock className="w-4 h-4 text-cyan-600" />
                     <p className="text-sm font-medium text-cyan-700">即将开始 ({upcomingGoals.length})</p>
                   </div>
-                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                    {upcomingGoals.slice(0, 5).map(goal => {
+                  <div className="space-y-1.5">
+                    {upcomingGoals.map(goal => {
                       const daysUntilStart = getDaysUntilStart(goal.startDate);
                       return (
                         <div key={goal.id} className="flex items-start gap-2 text-xs">
@@ -327,9 +324,6 @@ export default function Home() {
                         </div>
                       );
                     })}
-                    {upcomingGoals.length > 5 && (
-                      <p className="text-xs text-cyan-600 text-center">还有 {upcomingGoals.length - 5} 项...</p>
-                    )}
                   </div>
                 </div>
               )}
@@ -341,8 +335,8 @@ export default function Home() {
                     <AlertCircle className="w-4 h-4 text-red-600" />
                     <p className="text-sm font-medium text-red-700">已延期 ({delayedGoals.length})</p>
                   </div>
-                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                    {delayedGoals.slice(0, 5).map(goal => {
+                  <div className="space-y-1.5">
+                    {delayedGoals.map(goal => {
                       const daysOverdue = Math.abs(getDaysRemaining(goal.endDate) || 0);
                       return (
                         <div key={goal.id} className="flex items-start gap-2 text-xs">
@@ -354,9 +348,6 @@ export default function Home() {
                         </div>
                       );
                     })}
-                    {delayedGoals.length > 5 && (
-                      <p className="text-xs text-red-600 text-center">还有 {delayedGoals.length - 5} 项...</p>
-                    )}
                   </div>
                 </div>
               )}
@@ -368,8 +359,8 @@ export default function Home() {
                     <AlertTriangle className="w-4 h-4 text-amber-600" />
                     <p className="text-sm font-medium text-amber-700">即将到期 ({urgentGoals.length})</p>
                   </div>
-                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                    {urgentGoals.slice(0, 5).map(goal => {
+                  <div className="space-y-1.5">
+                    {urgentGoals.map(goal => {
                       const daysRemaining = getDaysRemaining(goal.endDate);
                       return (
                         <div key={goal.id} className="flex items-start gap-2 text-xs">
@@ -383,9 +374,6 @@ export default function Home() {
                         </div>
                       );
                     })}
-                    {urgentGoals.length > 5 && (
-                      <p className="text-xs text-amber-600 text-center">还有 {urgentGoals.length - 5} 项...</p>
-                    )}
                   </div>
                 </div>
               )}
@@ -397,8 +385,8 @@ export default function Home() {
                     <AlertTriangle className="w-4 h-4 text-orange-600" />
                     <p className="text-sm font-medium text-orange-700">昨日未完成 ({yesterdayIncomplete.length})</p>
                   </div>
-                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                    {yesterdayIncomplete.slice(0, 5).map(goal => (
+                  <div className="space-y-1.5">
+                    {yesterdayIncomplete.map(goal => (
                       <div key={goal.id} className="flex items-start gap-2 text-xs">
                         <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">
                           日目标
@@ -406,9 +394,6 @@ export default function Home() {
                         <span className="text-orange-700 flex-1 truncate">{goal.name}</span>
                       </div>
                     ))}
-                    {yesterdayIncomplete.length > 5 && (
-                      <p className="text-xs text-orange-600 text-center">还有 {yesterdayIncomplete.length - 5} 项...</p>
-                    )}
                   </div>
                 </div>
               )}
